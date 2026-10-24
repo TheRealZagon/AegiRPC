@@ -1,0 +1,15 @@
+<config>
+    <client_id>736734207556059187</client_id>
+    <default_details>Working on Subtitles</default_details>
+    <default_state>General Editing</default_state>
+    <large_image>aegisub_large</large_image>
+    <small_image>aegisub_small</small_image>
+    <small_text>Aegisub</small_text>
+    <aegisub_path></aegisub_path> <!-- Leave empty to auto-detect -->
+    <button_enabled>true</button_enabled>
+    <button_label>Fansub website</button_label>
+    <button_url>https://www.zagonsubs.org</button_url>
+    <project_name_source>ass_filename</project_name_source> <!-- ass_title for the internal name, ass_filename for the filename -->
+    <tooltip_enabled>false</tooltip_enabled>
+    <hide_console>true</hide_console>
+</config>
