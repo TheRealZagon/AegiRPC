@@ -1,2 +1,2 @@
-pypresence>=4.3,<5
+pypresence>=4.6.2,<5
 psutil>=5.9,<8
