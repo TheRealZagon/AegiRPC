@@ -1,5 +1,4 @@
 # -*- mode: python ; coding: utf-8 -*-
-# Build with: pyinstaller AegiRPC.spec  (the Windows exe has to be built on Windows)
 import sys
 
 windows = sys.platform == 'win32'
@@ -25,7 +24,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='AegiRPC' if windows else 'aegi_rpc',
+    name='AegiRPC',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

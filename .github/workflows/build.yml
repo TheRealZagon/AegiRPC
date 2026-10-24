@@ -40,7 +40,7 @@ jobs:
             built: dist/AegiRPC.exe
             asset: AegiRPC.exe
           - os: ubuntu-latest
-            built: dist/aegi_rpc
+            built: dist/AegiRPC
             asset: AegiRPC-linux-x86_64
     runs-on: ${{ matrix.os }}
     steps:
