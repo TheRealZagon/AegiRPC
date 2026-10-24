@@ -57,7 +57,7 @@ The default `client_id`, images and button belong to the author's fansub group. 
 
 ## Running from source
 
-Requires Python 3.9+ with Tk (on Linux, install your distro's `python3-tk`).
+Requires Python 3.9+ with Tk to build the GUI.
 
 ```
 python -m venv .venv
@@ -72,11 +72,13 @@ pip install -r requirements-dev.txt
 pyinstaller AegiRPC.spec
 ```
 
-PyInstaller does not cross-compile: build the Windows `.exe` on Windows. The GitHub Actions workflow in `.github/workflows/build.yml` does this for you: it runs the tests, builds the Windows and Linux binaries on every push, and pushing a tag like `v1.0.0` publishes them as a release together with `SHA256SUMS.txt`. To release, bump `VERSION` in `common.py`, commit, then tag with the same number (the workflow fails if they differ). Unsigned PyInstaller executables are sometimes flagged by antivirus software; compare the SHA-256 of a download against the one published with the release.
+PyInstaller does not natively cross-compile, but the GitHub Actions workflow does it for you: it runs the tests, builds the Windows and Linux binaries on every push, and pushing a tag like `v1.0.0` publishes them as a release together with `SHA256SUMS.txt`.
+
+Unsigned PyInstaller executables are sometimes flagged by antivirus software. You may want to compare the SHA-256 of a download against the one published with the release for your safety.
 
 ## Logs and tests
 
-Messages are also written to `aegirpc.log` in the install folder, which is the only place to look for errors in the windowed Windows build.
+Messages are also written to `aegirpc.log` in the install folder, which is the only place to look for errors in the windowed build.
 
 ```
 python -m unittest discover -s tests
@@ -84,4 +86,4 @@ python -m unittest discover -s tests
 
 ## License
 
-BSD 3-Clause, the same license as Aegisub. See [LICENSE](LICENSE). The icon is derived from the Aegisub logo; see [NOTICE](NOTICE). The icon is derived from the Aegisub logo; see [NOTICE](NOTICE).
+BSD 3-Clause, see [LICENSE](LICENSE). The icon is derived from the Aegisub logo; see [NOTICE](NOTICE).
