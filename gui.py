@@ -1,9 +1,8 @@
-import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
 import os
-import sys
-import subprocess
 import shutil
+import sys
+import tkinter as tk
+from tkinter import filedialog, messagebox, ttk
 
 from associations import associations_installed, install_associations, remove_associations
 from common import (
@@ -11,7 +10,6 @@ from common import (
     SUPPORTED_EXTENSIONS,
     VERSION,
     find_aegisub,
-    find_config_file,
     install_path,
     read_config,
     save_config_file,
@@ -23,20 +21,23 @@ MAX_WINDOW_HEIGHT = 760
 PROGRAM_FILES = ("aegi_rpc.py", "gui.py", "common.py", "associations.py")
 
 
+def installed_program():
+    """Path the program has (or would have) in the install folder."""
+    name = os.path.basename(sys.executable) if getattr(sys, "frozen", False) else "aegi_rpc.py"
+    return os.path.join(install_path(), name)
+
+
 def is_installed():
-    dest = install_path()
-    if getattr(sys, 'frozen', False):
-        return os.path.isfile(os.path.join(dest, os.path.basename(sys.executable)))
-    return os.path.isfile(os.path.join(dest, "aegi_rpc.py"))
+    return os.path.isfile(installed_program())
 
 
 def install_files():
+    """Copies the program into the install folder and returns the path to launch."""
     dest = install_path()
     os.makedirs(dest, exist_ok=True)
 
-    if getattr(sys, 'frozen', False):
-        src = sys.executable
-        dst = os.path.join(dest, os.path.basename(src))
+    if getattr(sys, "frozen", False):
+        src, dst = sys.executable, installed_program()
         if os.path.abspath(src) != os.path.abspath(dst):
             shutil.copy2(src, dst)
             if sys.platform != "win32":
@@ -48,7 +49,7 @@ def install_files():
             if os.path.isfile(src):
                 shutil.copy2(src, os.path.join(dest, name))
 
-    return dest
+    return installed_program()
 
 
 class AegiRPCGUI:
@@ -84,8 +85,7 @@ class AegiRPCGUI:
         except Exception:
             self.config = DEFAULTS.copy()
 
-        if self.config.get("aegisub_path"):
-            self.aegisub_path = self.config["aegisub_path"]
+        self.aegisub_path = self.config["aegisub_path"] or None
 
     def save_config(self):
         self.config["aegisub_path"] = self.aegisub_path or ""
@@ -98,10 +98,8 @@ class AegiRPCGUI:
             self.config_path = saved
 
     def detect_aegisub(self):
-        if self.aegisub_path and os.path.isfile(self.aegisub_path):
-            return
-
-        self.aegisub_path = find_aegisub()
+        if not (self.aegisub_path and os.path.isfile(self.aegisub_path)):
+            self.aegisub_path = find_aegisub()
 
     def build_ui(self):
         for widget in self.root.winfo_children():
@@ -164,10 +162,8 @@ class AegiRPCGUI:
         ttk.Label(assoc_frame, text="Set AegiRPC as the default editor for subtitle files.\nThis allows double-clicking .ass/.srt files to open them\nthrough AegiRPC with Discord Rich Presence.\n\nFiles will be installed to a permanent location so\nfile associations survive if you delete this folder.").pack(pady=(0, 10))
         ttk.Button(assoc_frame, text="Install & Set as Default Editor (.ass/.srt)", command=self.set_file_associations).pack()
 
-        btn_frame = self.button_bar
-
-        ttk.Button(btn_frame, text="Cancel", command=self.cancel).pack(side=tk.RIGHT)
-        ttk.Button(btn_frame, text="Save & Continue", command=self.save_install).pack(side=tk.RIGHT, padx=(0, 10))
+        ttk.Button(self.button_bar, text="Cancel", command=self.cancel).pack(side=tk.RIGHT)
+        ttk.Button(self.button_bar, text="Save & Continue", command=self.save_install).pack(side=tk.RIGHT, padx=(0, 10))
 
     def build_settings_ui(self, parent):
         ttk.Label(parent, text="AegiRPC Settings", font=("", 16, "bold")).pack(pady=(0, 15))
@@ -180,7 +176,7 @@ class AegiRPCGUI:
 
         self.aegi_path_var = tk.StringVar(value=self.aegisub_path)
         ttk.Label(aegi_path_frame, textvariable=self.aegi_path_var, wraplength=400).pack(side=tk.LEFT, fill=tk.X, expand=True)
-        ttk.Button(aegi_path_frame, text="Change", command=self.change_aegisub).pack(side=tk.RIGHT)
+        ttk.Button(aegi_path_frame, text="Change", command=self.browse_aegisub).pack(side=tk.RIGHT)
 
         discord_frame = ttk.LabelFrame(parent, text="Discord", padding="10")
         discord_frame.pack(fill=tk.X, pady=(0, 10))
@@ -272,17 +268,12 @@ class AegiRPCGUI:
             self.file_list.insert(tk.END, path)
         ttk.Button(launch_frame, text="Remove Selected", command=self.remove_selected_files).pack(anchor=tk.E)
 
-        btn_frame = self.button_bar
-
-        ttk.Button(btn_frame, text="Cancel", command=self.cancel).pack(side=tk.RIGHT)
-        ttk.Button(btn_frame, text="Save Only", command=self.save_only).pack(side=tk.RIGHT, padx=(0, 10))
-        ttk.Button(btn_frame, text="Save & Launch", command=self.save_and_launch).pack(side=tk.RIGHT, padx=(0, 10))
+        ttk.Button(self.button_bar, text="Cancel", command=self.cancel).pack(side=tk.RIGHT)
+        ttk.Button(self.button_bar, text="Save Only", command=self.save_only).pack(side=tk.RIGHT, padx=(0, 10))
+        ttk.Button(self.button_bar, text="Save & Launch", command=self.save_and_launch).pack(side=tk.RIGHT, padx=(0, 10))
 
     def toggle_client_id(self):
-        if self.edit_client_id_var.get():
-            self.client_id_entry.config(state="normal")
-        else:
-            self.client_id_entry.config(state="disabled")
+        self.client_id_entry.config(state="normal" if self.edit_client_id_var.get() else "disabled")
 
     def toggle_button_fields(self):
         state = "normal" if self.button_enabled_var.get() else "disabled"
@@ -334,9 +325,6 @@ class AegiRPCGUI:
                 self.aegi_path_var.set(path)
             if hasattr(self, 'path_var'):
                 self.path_var.set(path)
-
-    def change_aegisub(self):
-        self.browse_aegisub()
 
     def browse_subtitle(self):
         filetypes = [
@@ -396,19 +384,11 @@ class AegiRPCGUI:
             return
 
         try:
-            install_dir = install_files()
-            if getattr(sys, 'frozen', False):
-                installed_exe = os.path.join(install_dir, os.path.basename(sys.executable))
-                script_path = installed_exe
-            else:
-                script_path = os.path.join(install_dir, "aegi_rpc.py")
-
-            installed_config = os.path.join(install_dir, "config.xml")
+            script_path = install_files()
             old_path = self.config_path
-            self.config_path = installed_config
+            self.config_path = os.path.join(install_path(), "config.xml")
             self.save_config()
             self.config_path = old_path
-
         except Exception as e:
             messagebox.showerror("Error", f"Failed to install files: {e}")
             return
@@ -480,7 +460,6 @@ class AegiRPCGUI:
         self.config["hide_file_names"] = self.hide_file_names_var.get()
         self.config["tooltip_enabled"] = self.tooltip_var.get()
         self.config["hide_console"] = self.hide_console_var.get()
-        self.config["aegisub_path"] = self.aegisub_path or ""
 
     def save_and_launch(self):
         # A path typed or pasted but not added yet still counts
@@ -518,16 +497,4 @@ class AegiRPCGUI:
 
 
 def run_gui(config_path):
-    gui = AegiRPCGUI(config_path)
-    return gui.run()
-
-
-if __name__ == "__main__":
-    script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
-
-    gui = AegiRPCGUI(find_config_file())
-    result = gui.run()
-
-    if result and result.get("action") == "launch":
-        script_path = os.path.join(script_dir, "aegi_rpc.py")
-        subprocess.Popen([sys.executable, script_path, *result["files"]])
+    return AegiRPCGUI(config_path).run()

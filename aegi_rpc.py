@@ -24,6 +24,8 @@ POLL_SECONDS = 10
 REFRESH_SECONDS = 60
 RETRY_SECONDS = 10
 DISCORD_TEXT_MAX = 128
+DETECT_ATTEMPTS = 5
+RECONNECT_ATTEMPTS = 3
 
 
 USAGE = """\
@@ -67,7 +69,7 @@ def say(message):
 
 
 def load_config(config_file):
-    """Loads and validates configuration from XML file."""
+    """Loads and validates the config, filling in the Aegisub path if it is not set."""
     try:
         config = read_config(config_file)
     except FileNotFoundError:
@@ -159,15 +161,12 @@ def is_aegisub_running(config):
 
 
 def capture_child_pids(pid):
-    """Captures child PIDs of a process. Handles wrapper scripts that spawn the real process."""
+    """Returns child PIDs of a process, for wrapper scripts that spawn the real Aegisub."""
     child_pids = []
     try:
         proc = psutil.Process(pid)
         for _ in range(5):
-            children = proc.children(recursive=True)
-            for child in children:
-                if child.pid not in child_pids:
-                    child_pids.append(child.pid)
+            child_pids = [child.pid for child in proc.children(recursive=True)]
             if child_pids:
                 break
             time.sleep(0.1)
@@ -182,7 +181,7 @@ def is_alive(proc):
 
 
 def are_aegisub_instances_running(pids, config=None):
-    """Checks if any of the tracked Aegisub PIDs (or their children) are still alive."""
+    """True if any tracked Aegisub PID or its children are still alive."""
     for pid in pids:
         try:
             proc = psutil.Process(pid)
@@ -213,31 +212,23 @@ def project_name(fd, config):
 
 
 def format_multi_details(file_data_list, config):
-    """Formats details text for multiple open files."""
     names = [project_name(fd, config) or fd["file_name"] for fd in file_data_list]
 
+    if len(names) == 1:
+        return f"Editing {names[0]}"
     if len(names) == 2:
         return f"Editing {names[0]} and {names[1]}"
-    elif len(names) > 2:
-        return f"Editing {names[0]} and {len(names) - 1} others"
-    return f"Editing {names[0]}"
+    return f"Editing {names[0]} and {len(names) - 1} others"
 
 
 def build_buttons(config):
-    """Builds button list if website button is enabled."""
-    if not config["button_enabled"]:
-        return None
-
-    label = config["button_label"]
-    url = config["button_url"]
-
-    if label and url:
+    label, url = config["button_label"], config["button_url"]
+    if config["button_enabled"] and label and url:
         return [{"label": label, "url": url}]
     return None
 
 
 def build_presence(config, file_data_list, start_time):
-    """Builds the Discord Rich Presence payload. Supports single or multiple files."""
     details = config["default_details"]
     state = config["default_state"]
 
@@ -271,6 +262,15 @@ def build_presence(config, file_data_list, start_time):
         presence["buttons"] = buttons
 
     return presence
+
+
+def hide_console():
+    try:
+        import ctypes
+        ctypes.windll.user32.ShowWindow(ctypes.windll.kernel32.GetConsoleWindow(), 0)
+        log.info("Console window hidden.")
+    except Exception as e:
+        log.warning("Error hiding console: %s", e)
 
 
 def cleanup_rpc(rpc):
@@ -342,27 +342,19 @@ def main():
         time.sleep(3)
 
         if config["hide_console"] and sys.platform == "win32":
-            try:
-                import ctypes
-                ctypes.windll.user32.ShowWindow(
-                    ctypes.windll.kernel32.GetConsoleWindow(), 0
-                )
-                log.info("Console window hidden.")
-            except Exception as e:
-                log.warning("Error hiding console: %s", e)
+            hide_console()
 
     except FileNotFoundError:
         fatal(f"Aegisub not found at '{config['aegisub_path']}'.")
     except Exception as e:
         fatal(f"Aegisub launch error: {e}")
 
-    running_check_attempts = 5
-    for i in range(running_check_attempts):
+    for i in range(DETECT_ATTEMPTS):
         if is_aegisub_running(config):
             log.info("Aegisub is running! Setting up Discord Rich Presence...")
             break
-        if i < running_check_attempts - 1:
-            log.info("Waiting for Aegisub to start (attempt %d/%d)...", i + 1, running_check_attempts)
+        if i < DETECT_ATTEMPTS - 1:
+            log.info("Waiting for Aegisub to start (attempt %d/%d)...", i + 1, DETECT_ATTEMPTS)
             time.sleep(2)
     else:
         log.warning("Could not detect Aegisub running after multiple attempts.")
@@ -370,7 +362,6 @@ def main():
 
     presence = build_presence(config, file_data_list, start_time)
     rpc = None
-    max_retries = 3
     try:
         def connect_rpc():
             nonlocal rpc
@@ -420,9 +411,9 @@ def main():
             except (pypresence.exceptions.PyPresenceException, OSError, AttributeError) as e:
                 log.warning("Discord connection lost: %s", e)
                 reconnected = False
-                for attempt in range(max_retries):
+                for attempt in range(RECONNECT_ATTEMPTS):
                     wait = 2 ** (attempt + 1)
-                    log.info("Reconnecting in %ds (attempt %d/%d)...", wait, attempt + 1, max_retries)
+                    log.info("Reconnecting in %ds (attempt %d/%d)...", wait, attempt + 1, RECONNECT_ATTEMPTS)
                     time.sleep(wait)
                     try:
                         connect_rpc()
